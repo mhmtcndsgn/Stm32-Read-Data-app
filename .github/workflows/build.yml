@@ -1,0 +1,85 @@
+name: Build STM32 Veri Kaydedici
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:   # Elle de tetiklenebilir
+jobs:
+  # ─────────────────────────────────────────
+  # MACOS BUILD → .dmg
+  # ─────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları kur
+        run: pip install pyserial pyinstaller
+      - name: .app oluştur
+        run: |
+          pyinstaller \
+            --onefile \
+            --windowed \
+            --name "STM32_Veri_Kaydedici" \
+            --collect-all serial \
+            --hidden-import serial \
+            --hidden-import serial.tools \
+            --hidden-import serial.tools.list_ports \
+            --hidden-import serial.tools.list_ports_osx \
+            --hidden-import serial.serialutil \
+            --osx-bundle-identifier "com.stm32.verikaydedici" \
+            main.py
+      - name: .dmg paket oluştur
+        run: |
+          mkdir -p dmg_content
+          cp -r dist/STM32_Veri_Kaydedici dmg_content/
+          # .dmg oluştur (hdiutil macOS'ta yerleşik)
+          hdiutil create \
+            -volname "STM32 Veri Kaydedici" \
+            -srcfolder dmg_content \
+            -ov \
+            -format UDZO \
+            STM32_Veri_Kaydedici_mac.dmg
+      - name: macOS artifact yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: STM32_Veri_Kaydedici_macOS
+          path: STM32_Veri_Kaydedici_mac.dmg
+          retention-days: 30
+  # ─────────────────────────────────────────
+  # WINDOWS BUILD → .exe
+  # ─────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+      - name: Python kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bağımlılıkları kur
+        run: pip install pyserial pyinstaller
+      - name: .exe oluştur
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name "STM32_Veri_Kaydedici" `
+            --collect-all serial `
+            --hidden-import serial `
+            --hidden-import serial.tools `
+            --hidden-import serial.tools.list_ports `
+            --hidden-import serial.tools.list_ports_windows `
+            --hidden-import serial.serialutil `
+            --hidden-import serial.serialwin32 `
+            main.py
+      - name: Windows artifact yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: STM32_Veri_Kaydedici_Windows
+          path: dist/STM32_Veri_Kaydedici.exe
+          retention-days: 30
