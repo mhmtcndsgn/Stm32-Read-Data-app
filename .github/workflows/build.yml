@@ -1,12 +1,11 @@
-name: Build STM32 Veri Kaydedici
+name: Build and Release STM32 Veri Kaydedici
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:   # Elle de tetiklenebilir
+  workflow_dispatch:
+permissions:
+  contents: write
 jobs:
-  # ─────────────────────────────────────────
-  # MACOS BUILD → .dmg
-  # ─────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
     steps:
@@ -16,42 +15,40 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Bağımlılıkları kur
-        run: pip install pyserial pyinstaller
-      - name: .app oluştur
+      - name: Bagimliliklari kur
+        run: pip install pyserial pyinstaller matplotlib
+      - name: .app olustur
         run: |
           pyinstaller \
             --onefile \
             --windowed \
             --name "STM32_Veri_Kaydedici" \
             --collect-all serial \
+            --collect-all matplotlib \
             --hidden-import serial \
             --hidden-import serial.tools \
             --hidden-import serial.tools.list_ports \
             --hidden-import serial.tools.list_ports_osx \
             --hidden-import serial.serialutil \
+            --hidden-import matplotlib \
+            --hidden-import matplotlib.backends.backend_tkagg \
             --osx-bundle-identifier "com.stm32.verikaydedici" \
             main.py
-      - name: .dmg paket oluştur
+      - name: .dmg paket olustur
         run: |
           mkdir -p dmg_content
-          cp -r dist/STM32_Veri_Kaydedici dmg_content/
-          # .dmg oluştur (hdiutil macOS'ta yerleşik)
+          cp -r dist/STM32_Veri_Kaydedici.app dmg_content/
           hdiutil create \
             -volname "STM32 Veri Kaydedici" \
             -srcfolder dmg_content \
             -ov \
             -format UDZO \
-            STM32_Veri_Kaydedici_mac.dmg
-      - name: macOS artifact yükle
+            STM32_Veri_Kaydedici_macOS.dmg
+      - name: macOS artifact yukle
         uses: actions/upload-artifact@v4
         with:
-          name: STM32_Veri_Kaydedici_macOS
-          path: STM32_Veri_Kaydedici_mac.dmg
-          retention-days: 30
-  # ─────────────────────────────────────────
-  # WINDOWS BUILD → .exe
-  # ─────────────────────────────────────────
+          name: macos-artifact
+          path: STM32_Veri_Kaydedici_macOS.dmg
   build-windows:
     runs-on: windows-latest
     steps:
@@ -61,25 +58,51 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Bağımlılıkları kur
-        run: pip install pyserial pyinstaller
-      - name: .exe oluştur
+      - name: Bagimliliklari kur
+        run: pip install pyserial pyinstaller matplotlib
+      - name: .exe olustur
         run: |
           pyinstaller `
             --onefile `
             --windowed `
             --name "STM32_Veri_Kaydedici" `
             --collect-all serial `
+            --collect-all matplotlib `
             --hidden-import serial `
             --hidden-import serial.tools `
             --hidden-import serial.tools.list_ports `
             --hidden-import serial.tools.list_ports_windows `
             --hidden-import serial.serialutil `
             --hidden-import serial.serialwin32 `
+            --hidden-import matplotlib `
+            --hidden-import matplotlib.backends.backend_tkagg `
             main.py
-      - name: Windows artifact yükle
+      - name: Windows artifact yukle
         uses: actions/upload-artifact@v4
         with:
-          name: STM32_Veri_Kaydedici_Windows
+          name: windows-artifact
           path: dist/STM32_Veri_Kaydedici.exe
-          retention-days: 30
+  release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: macOS dosyasini indir
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifact
+          path: release_assets/
+      - name: Windows dosyasini indir
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifact
+          path: release_assets/
+      - name: Release Olustur
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.${{ github.run_number }}
+          name: "STM32 Veri Kaydedici (Son Sürüm)"
+          files: |
+            release_assets/STM32_Veri_Kaydedici_macOS.dmg
+            release_assets/STM32_Veri_Kaydedici.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
